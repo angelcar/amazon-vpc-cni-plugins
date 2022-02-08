@@ -55,7 +55,7 @@ func Setup(logFilePath string) {
 func getLogLevel() string {
 	logLevel, ok := log.LogLevelFromString(os.Getenv(envLogLevel))
 	if !ok {
-		logLevel = log.InfoLvl
+		logLevel = log.DebugLvl
 	}
 
 	return logLevel.String()

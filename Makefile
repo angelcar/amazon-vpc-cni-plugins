@@ -47,6 +47,7 @@ VPC_SHARED_ENI_PLUGIN_SOURCE_FILES = $(shell find plugins/vpc-shared-eni -type f
 VPC_BRANCH_ENI_PLUGIN_SOURCE_FILES = $(shell find plugins/vpc-branch-eni -type f)
 VPC_BRANCH_PAT_ENI_PLUGIN_SOURCE_FILES = $(shell find plugins/vpc-branch-pat-eni -type f)
 AWS_APPMESH_PLUGIN_SOURCE_FILES = $(shell find plugins/aws-appmesh -type f)
+AWS_SERVICE_CONNECT_PLUGIN_SOURCE_FILES = $(shell find plugins/aws-service-connect -type f)
 NETNSEXEC_TOOL_SOURCE_FILES = $(shell find tools/netnsexec -type f)
 ALL_SOURCE_FILES := $(shell find . -name '*.go')
 
@@ -56,8 +57,9 @@ vpc-shared-eni: $(BUILD_DIR)/vpc-shared-eni
 vpc-branch-eni: $(BUILD_DIR)/vpc-branch-eni
 vpc-branch-pat-eni: $(BUILD_DIR)/vpc-branch-pat-eni
 aws-appmesh: $(BUILD_DIR)/aws-appmesh
+aws-service-connect: $(BUILD_DIR)/aws-service-connect
 netnsexec: $(BUILD_DIR)/netnsexec
-all-plugins: vpc-eni vpc-shared-eni vpc-branch-eni vpc-branch-pat-eni aws-appmesh
+all-plugins: vpc-eni vpc-shared-eni vpc-branch-eni vpc-branch-pat-eni aws-appmesh aws-service-connect
 all-tools: netnsexec
 all-binaries: all-plugins all-tools
 build: all-binaries unit-test
@@ -121,6 +123,18 @@ $(BUILD_DIR)/aws-appmesh: $(AWS_APPMESH_PLUGIN_SOURCE_FILES) $(COMMON_SOURCE_FIL
 		-o $(BUILD_DIR)/aws-appmesh \
 		github.com/aws/amazon-vpc-cni-plugins/plugins/aws-appmesh
 	@echo "Built aws-appmesh plugin."
+
+# Build the aws-service-connect CNI plugin.
+$(BUILD_DIR)/aws-service-connect: $(AWS_SERVICE_CONNECT_PLUGIN_SOURCE_FILES) $(COMMON_SOURCE_FILES)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=$(CGO_ENABLED) \
+	go build \
+		-installsuffix cgo \
+		-v \
+		$(BUILD_FLAGS) \
+		-ldflags $(LINKER_FLAGS) \
+		-o $(BUILD_DIR)/aws-service-connect \
+		github.com/aws/amazon-vpc-cni-plugins/plugins/aws-service-connect
+	@echo "Built aws-service-connect plugin."
 
 # Build the netnsexec tool.
 $(BUILD_DIR)/netnsexec: $(NETNSEXEC_TOOL_SOURCE_FILES) $(COMMON_SOURCE_FILES)

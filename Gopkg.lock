@@ -45,6 +45,7 @@
   name = "github.com/containernetworking/cni"
   packages = [
     "pkg/invoke",
+    "pkg/ns",
     "pkg/skel",
     "pkg/types",
     "pkg/types/020",
@@ -159,6 +160,7 @@
     "github.com/Microsoft/hcsshim",
     "github.com/cihub/seelog",
     "github.com/containernetworking/cni/pkg/invoke",
+    "github.com/containernetworking/cni/pkg/ns",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",

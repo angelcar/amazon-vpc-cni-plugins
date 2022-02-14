@@ -77,15 +77,15 @@ func New(args *cniSkel.CmdArgs) (*NetConfig, error) {
 	}
 
 	// Validate network configuration.
-	if err := validateConfig(config); err != nil {
-		return nil, err
-	}
+	//if err := validateConfig(config); err != nil {
+	//	return nil, err
+	//}
 
 	// Get separate lists of IPv4 address/CIDR block and IPv6 address/CIDR block.
-	ipv4s, ipv6s, err := separateIPs(config.EgressIgnoredIPs)
-	if err != nil {
-		return nil, err
-	}
+	//ipv4s, ipv6s, err := separateIPs(config.EgressIgnoredIPs)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	// Populate NetConfig.
 	netConfig := NetConfig{
@@ -95,8 +95,8 @@ func New(args *cniSkel.CmdArgs) (*NetConfig, error) {
 		ProxyIngressPort:   config.ProxyIngressPort,
 		ProxyEgressPort:    config.ProxyEgressPort,
 		AppPorts:           strings.Join(config.AppPorts, splitter),
-		EgressIgnoredIPv4s: ipv4s,
-		EgressIgnoredIPv6s: ipv6s,
+		//EgressIgnoredIPv4s: ipv4s,
+		//EgressIgnoredIPv6s: ipv6s,
 		EgressIgnoredPorts: strings.Join(config.EgressIgnoredPorts, splitter),
 		EnableIPv6:         config.EnableIPv6,
 		AppNetNSPath:       config.AppNetNSPath,

@@ -63,9 +63,6 @@ func (plugin *Plugin) Add(args *cniSkel.CmdArgs) error {
 
 	log.Infof("Created veth pair: proxyVethInterface=%s <-> appVethName=%s", proxyVethInterfaceName, appVeth)
 
-
-
-
 	_, err = configureVethInterface(args.Netns, proxyVethInterfaceName, "20.0.2.1/24")
 	if err != nil {
 		return err
@@ -75,8 +72,15 @@ func (plugin *Plugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	gwIp := net.ParseIP("20.0.2.1")
-	ip.AddDefaultRoute(gwIp, appLink)
+	err = ns.WithNetNSPath(netConfig.AppNetNSPath, func(_ ns.NetNS) error {
+		gwIp := net.ParseIP("20.0.2.1")
+		return ip.AddDefaultRoute(gwIp, appLink)
+	})
+	if err != nil {
+		return err
+	}
+
+
 
 
 	//routes, err := netlink.RouteList(cvctx.link, netlink.FAMILY_ALL)

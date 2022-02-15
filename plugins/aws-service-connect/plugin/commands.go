@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 	"net"
+	"strings"
 )
 
 const (
@@ -73,6 +74,23 @@ func (plugin *Plugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	err = ns.WithNetNSPath(netConfig.AppNetNSPath, func(_ ns.NetNS) error {
+
+		//routes, err := netlink.RouteList(appLink, netlink.FAMILY_ALL)
+		//if err != nil {
+		//	return errors.Wrapf(err, "bridge configure veth: unable to fetch routes for interface: %s", args.IfName)
+		//}
+		//
+		//// Delete all default routes within the container
+		//for _, route := range routes {
+		//	if route.Gw == nil {
+		//		err = netlink.RouteDel(&route)
+		//		if err != nil {
+		//			return errors.Wrapf(err,
+		//				"bridge configure veth: unable to delete route: %v", route)
+		//		}
+		//	}
+		//}
+
 		gwIp := net.ParseIP("20.0.2.1")
 		return ip.AddDefaultRoute(gwIp, appLink)
 	})
@@ -81,44 +99,32 @@ func (plugin *Plugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 
+	// Add IP rules in the target network namespace.
+	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
+		var err error
+		ipProtoMap := make(map[iptables.Protocol]string)
+		ipProtoMap[iptables.ProtocolIPv4] = netConfig.EgressIgnoredIPv4s
+		if netConfig.EnableIPv6 {
+			ipProtoMap[iptables.ProtocolIPv6] = netConfig.EgressIgnoredIPv6s
+		}
 
+		for proto, ignoredIPs := range ipProtoMap {
+			err = plugin.setupIptablesRules(proto, netConfig, ignoredIPs)
+			if err != nil {
+				log.Errorf("Failed to set up iptables rules: %v.", err)
+				return err
+			}
+		}
 
-	//routes, err := netlink.RouteList(cvctx.link, netlink.FAMILY_ALL)
-	//if err != nil {
-	//	return errors.Wrapf(err,
-	//		"bridge configure veth: unable to fetch routes for interface: %s",
-	//		cvctx.interfaceName)
-	//}
+		return nil
+	})
 
-	//Z
+	if err != nil {
+		return err
+	}
 
-
-	//// Add IP rules in the target network namespace.
-	//err = ns.Run(func() error {
-	//	var err error
-	//	ipProtoMap := make(map[iptables.Protocol]string)
-	//	ipProtoMap[iptables.ProtocolIPv4] = netConfig.EgressIgnoredIPv4s
-	//	if netConfig.EnableIPv6 {
-	//		ipProtoMap[iptables.ProtocolIPv6] = netConfig.EgressIgnoredIPv6s
-	//	}
-	//
-	//	for proto, ignoredIPs := range ipProtoMap {
-	//		err = plugin.setupIptablesRules(proto, netConfig, ignoredIPs)
-	//		if err != nil {
-	//			log.Errorf("Failed to set up iptables rules: %v.", err)
-	//			return err
-	//		}
-	//	}
-	//
-	//	return nil
-	//})
-	//
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//// Pass through the previous result.
-	//log.Infof("Writing CNI result to stdout: %+v", netConfig.PrevResult)
+	// Pass through the previous result.
+	log.Infof("Writing CNI result to stdout: %+v", netConfig.PrevResult)
 
 	return cniTypes.PrintResult(netConfig.PrevResult, netConfig.CNIVersion)
 }
@@ -169,6 +175,8 @@ func (plugin *Plugin) setupIptablesRules(
 	proto iptables.Protocol,
 	config *config.NetConfig,
 	egressIgnoredIPs string) error {
+
+	return nil
 	// Create a new iptables object.
 	iptable, err := iptables.NewWithProtocol(proto)
 	if err != nil {
@@ -265,6 +273,14 @@ func (plugin *Plugin) setupIngressRules(
 		return err
 	}
 
+	err = iptable.NewChain("mangle", ingressChain)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("running iptables %s", strings.Join([]string{"nat", ingressChain, "-p", "tcp", "-m", "multiport", "--dports", config.AppPorts,
+		"-j", "REDIRECT", "--to-port", config.ProxyIngressPort}, ","))
+
 	// Route everything arriving at the application port to proxy.
 	err = iptable.Append("nat", ingressChain, "-p", "tcp", "-m", "multiport", "--dports", config.AppPorts,
 		"-j", "REDIRECT", "--to-port", config.ProxyIngressPort)
@@ -273,11 +289,21 @@ func (plugin *Plugin) setupIngressRules(
 		return err
 	}
 
+	log.Infof("running iptables %s", strings.Join([]string{"nat", "PREROUTING",  "-m", "addrtype", "!", "--src-type",
+		"LOCAL", "-j", ingressChain}, ","))
+
 	// Apply ingress chain to everything non-local.
-	err = iptable.Append("nat", "PREROUTING", "-p", "tcp", "-m", "addrtype", "!", "--src-type",
+	err = iptable.Append("nat", "PREROUTING",  "-m", "addrtype", "!", "--src-type",
 		"LOCAL", "-j", ingressChain)
 	if err != nil {
 		log.Errorf("Append rule to jump from PREROUTING to ingress chain failed: %v", err)
+		return err
+	}
+
+	log.Infof("running iptables %s", strings.Join([]string{"nat", "POSTROUTING",  "-o", "device", "-j", "MASQUERADE"}, ","))
+	err = iptable.Append("nat", "POSTROUTING",  "-o", "device", "-j", "MASQUERADE")
+	if err != nil {
+		log.Errorf("Append rule to jump from POSTROUTING to ingress chain failed: %v", err)
 		return err
 	}
 
